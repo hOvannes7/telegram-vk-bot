@@ -27,6 +27,9 @@ wheels/
 .env
 .env.local
 
+# Target chat config
+target_chat.json
+
 # IDE
 .vscode/
 .idea/

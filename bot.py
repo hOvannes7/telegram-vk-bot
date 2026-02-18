@@ -4,8 +4,10 @@ Main bot implementation with command handlers.
 """
 
 import logging
+import json
 from datetime import datetime
 from typing import Optional
+from pathlib import Path
 from telegram import Update, Bot
 from telegram.ext import (
     Application,
@@ -33,15 +35,110 @@ logger = logging.getLogger(__name__)
 # Conversation states
 SELECT_GROUP, SELECT_START_DATE, SELECT_END_DATE, SELECT_COUNT = range(4)
 
+# File to store target chat ID
+TARGET_CHAT_FILE = Path("target_chat.json")
+
 
 class VKTelegramBot:
     """Main bot class."""
-    
+
     def __init__(self):
         self.vk_client = VKClient()
         self.bot: Optional[Bot] = None
         self.media_handler: Optional[MediaHandler] = None
         self.user_data = {}
+
+    def _get_target_chat_id(self) -> Optional[str]:
+        """Get target chat ID from file or config."""
+        # First check if we have saved chat ID
+        if TARGET_CHAT_FILE.exists():
+            try:
+                with open(TARGET_CHAT_FILE, 'r') as f:
+                    data = json.load(f)
+                    chat_id = data.get('chat_id')
+                    if chat_id:
+                        return str(chat_id)
+            except Exception as e:
+                logger.error(f"Error reading target chat file: {e}")
+        
+        # Fall back to config
+        return Config.TARGET_CHAT_ID or None
+
+    def _save_target_chat_id(self, chat_id: str) -> None:
+        """Save target chat ID to file."""
+        try:
+            with open(TARGET_CHAT_FILE, 'w') as f:
+                json.dump({'chat_id': chat_id}, f)
+            logger.info(f"Saved target chat ID: {chat_id}")
+        except Exception as e:
+            logger.error(f"Error saving target chat ID: {e}")
+
+    def _clear_target_chat_id(self) -> None:
+        """Clear saved target chat ID."""
+        try:
+            if TARGET_CHAT_FILE.exists():
+                TARGET_CHAT_FILE.unlink()
+            logger.info("Cleared target chat ID")
+        except Exception as e:
+            logger.error(f"Error clearing target chat ID: {e}")
+
+    async def set_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /setchat command - set target chat for copying posts."""
+        chat_id = str(update.effective_chat.id)
+        chat_type = update.effective_chat.type
+        
+        # Save the chat ID
+        self._save_target_chat_id(chat_id)
+        
+        chat_name = update.effective_chat.title or update.effective_chat.username or "этот чат"
+        
+        await update.message.reply_text(
+            f"✅ <b>Целевой чат установлен!</b>\n\n"
+            f"Чат: <code>{chat_name}</code>\n"
+            f"ID: <code>{chat_id}</code>\n"
+            f"Тип: <code>{chat_type}</code>\n\n"
+            f"Теперь все посты будут копироваться в этот чат.\n\n"
+            f"Команды:\n"
+            f"/getchat - Показать текущий чат\n"
+            f"/clearchat - Сбросить настройки (копировать в текущий чат)",
+            parse_mode=ParseMode.HTML
+        )
+
+    async def get_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /getchat command - show current target chat."""
+        target_chat_id = self._get_target_chat_id()
+        
+        if target_chat_id:
+            await update.message.reply_text(
+                f"📍 <b>Текущий целевой чат:</b>\n\n"
+                f"ID: <code>{target_chat_id}</code>\n\n"
+                f"Команды:\n"
+                f"/setchat - Изменить чат\n"
+                f"/clearchat - Сбросить настройки",
+                parse_mode=ParseMode.HTML
+            )
+        else:
+            await update.message.reply_text(
+                "ℹ️ <b>Целевой чат не настроен.</b>\n\n"
+                f"Посты будут копироваться в тот чат, где отправлена команда <code>/copy</code>.\n\n"
+                f"Команды:\n"
+                f"/setchat - Установить целевой чат\n"
+                f"/getchat - Показать текущий чат",
+                parse_mode=ParseMode.HTML
+            )
+
+    async def clear_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /clearchat command - clear target chat settings."""
+        self._clear_target_chat_id()
+        
+        await update.message.reply_text(
+            "✅ <b>Настройки сброшены!</b>\n\n"
+            f"Теперь посты будут копироваться в тот чат, где отправлена команда <code>/copy</code>.\n\n"
+            f"Команды:\n"
+            f"/setchat - Установить целевой чат\n"
+            f"/getchat - Показать текущий чат",
+            parse_mode=ParseMode.HTML
+        )
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""
@@ -197,8 +294,8 @@ class VKTelegramBot:
         end_date = context.user_data["end_date"]
         count = context.user_data["count"]
         
-        # Use TARGET_CHAT_ID from config if set, otherwise use current chat
-        chat_id = Config.TARGET_CHAT_ID or str(update.effective_chat.id)
+        # Use target chat ID from file/config or current chat
+        chat_id = self._get_target_chat_id() or str(update.effective_chat.id)
 
         await update.message.reply_text(
             f"🚀 <b>Starting copy process...</b>\n\n"
@@ -319,6 +416,9 @@ class VKTelegramBot:
         application.add_handler(CommandHandler("help", self.help_command))
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("cancel", self.cancel))
+        application.add_handler(CommandHandler("setchat", self.set_chat))
+        application.add_handler(CommandHandler("getchat", self.get_chat))
+        application.add_handler(CommandHandler("clearchat", self.clear_chat))
 
         # Error handler
         application.add_error_handler(self.error_handler)
