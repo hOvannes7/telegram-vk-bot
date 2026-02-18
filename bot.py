@@ -34,9 +34,8 @@ logger = logging.getLogger(__name__)
 # Conversation states
 SELECT_GROUP, SELECT_START_DATE, SELECT_END_DATE, SELECT_COUNT = range(4)
 
-# Mini App URL - ЗАМЕНИТЕ НА ВАШ URL ПОСЛЕ РАЗВЁРТЫВАНИЯ!
-# Пример: https://your-username.github.io/telegram-vk-bot/webapp/
-MINI_APP_URL = "https://your-username.github.io/telegram-vk-bot/webapp/"
+# Mini App URL - URL вашего развёрнутого Mini App
+MINI_APP_URL = "https://hOvannes7.github.io/telegram-vk-bot/webapp/"
 
 
 class VKTelegramBot:
