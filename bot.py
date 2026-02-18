@@ -217,87 +217,87 @@ class VKTelegramBot:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /help command."""
         await update.message.reply_text(
-            "📖 <b>Help Guide</b>\n\n"
-            "<b>How to use:</b>\n"
-            "1. Use /copy to start the copying process\n"
-            "2. Enter the VK group name or ID\n"
-            "3. Specify the start date (YYYY-MM-DD)\n"
-            "4. Specify the end date (YYYY-MM-DD)\n"
-            "5. Enter the number of posts to copy\n\n"
-            "<b>Notes:</b>\n"
-            "- All media (photos, videos, documents) will be copied\n"
-            "- Posts are copied in chronological order\n"
-            "- Large batches may take some time",
+            "📖 <b>Справка</b>\n\n"
+            "<b>Как использовать:</b>\n"
+            "1. Используйте /copy для начала копирования\n"
+            "2. Введите название или ID группы VK\n"
+            "3. Укажите начальную дату (ГГГГ-ММ-ДД)\n"
+            "4. Укажите конечную дату (ГГГГ-ММ-ДД)\n"
+            "5. Введите количество постов (1-100)\n\n"
+            "<b>Примечания:</b>\n"
+            "- Все медиа (фото, видео, документы) будут скопированы\n"
+            "- Посты копируются в хронологическом порядке\n"
+            "- Копирование больших объёмов может занять время",
             parse_mode=ParseMode.HTML
         )
-    
+
     async def status(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /status command."""
         await update.message.reply_text(
-            "✅ <b>Bot Status: Online</b>\n\n"
-            f"VK API Version: {Config.VK_API_VERSION}\n"
-            f"Ready to copy posts!",
+            "✅ <b>Статус бота: Онлайн</b>\n\n"
+            f"Версия VK API: {Config.VK_API_VERSION}\n"
+            f"Готов к копированию постов!",
             parse_mode=ParseMode.HTML
         )
     
     async def copy_start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Start the copy process."""
         await update.message.reply_text(
-            "📋 <b>Copy VK Posts</b>\n\n"
-            "Please enter the VK group name or ID.\n"
-            "Examples: <code>durov</code>, <code>123456</code>",
+            "📋 <b>Копирование постов из VK</b>\n\n"
+            "Введите название или ID группы VK.\n"
+            "Примеры: <code>durov</code>, <code>123456</code>",
             parse_mode=ParseMode.HTML
         )
         return SELECT_GROUP
-    
+
     async def group_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Process selected group."""
         group_name = update.message.text.strip()
         context.user_data["group_name"] = group_name
-        
+
         # Validate group
-        await update.message.reply_text(f"⏳ Checking group: <code>{group_name}</code>...")
-        
+        await update.message.reply_text(f"⏳ Проверка группы: <code>{group_name}</code>...")
+
         group_id = self.vk_client.get_group_id(group_name)
         if not group_id:
             await update.message.reply_text(
-                "❌ Group not found. Please try again or enter /cancel to abort.",
+                "❌ Группа не найдена. Попробуйте ещё раз или введите /cancel для отмены.",
                 parse_mode=ParseMode.HTML
             )
             return SELECT_GROUP
-        
+
         context.user_data["group_id"] = group_id
         await update.message.reply_text(
-            f"✅ Group found!\n\n"
-            f"Now enter the <b>start date</b> (YYYY-MM-DD):\n"
-            f"Example: <code>2024-01-01</code>",
+            f"✅ Группа найдена!\n\n"
+            f"Теперь введите <b>начальную дату</b> (ГГГГ-ММ-ДД):\n"
+            f"Пример: <code>2024-01-01</code>",
             parse_mode=ParseMode.HTML
         )
         return SELECT_START_DATE
-    
+
     async def start_date_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Process start date."""
         date_str = update.message.text.strip()
-        
+
         try:
             start_date = datetime.strptime(date_str, "%Y-%m-%d")
             context.user_data["start_date"] = start_date
         except ValueError:
             await update.message.reply_text(
-                "❌ Invalid date format. Please use YYYY-MM-DD format.\n"
-                "Example: <code>2024-01-01</code>",
+                "❌ Неверный формат даты. Используйте формат ГГГГ-ММ-ДД.\n"
+                "Пример: <code>2024-01-01</code>",
                 parse_mode=ParseMode.HTML
             )
             return SELECT_START_DATE
-        
+
         await update.message.reply_text(
-            f"✅ Start date: <code>{date_str}</code>\n\n"
-            f"Now enter the <b>end date</b> (YYYY-MM-DD):\n"
-            f"Example: <code>2024-12-31</code>",
+            f"✅ Начальная дата: <code>{date_str}</code>\n\n"
+            f"Теперь введите <b>конечную дату</b> (ГГГГ-ММ-ДД):\n"
+            f"Пример: <code>2024-12-31</code>",
             parse_mode=ParseMode.HTML
         )
         return SELECT_END_DATE
-    
+
     async def end_date_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Process end date."""
         date_str = update.message.text.strip()
@@ -307,31 +307,31 @@ class VKTelegramBot:
             end_date = datetime.strptime(date_str, "%Y-%m-%d")
             # Set end_date to end of day (23:59:59)
             end_date = end_date.replace(hour=23, minute=59, second=59)
-            
+
             if start_date and end_date < start_date:
                 await update.message.reply_text(
-                    "❌ End date must be after start date.\n"
-                    "Please try again.",
+                    "❌ Конечная дата должна быть позже начальной.\n"
+                    "Попробуйте ещё раз.",
                     parse_mode=ParseMode.HTML
                 )
                 return SELECT_END_DATE
-            
+
             context.user_data["end_date"] = end_date
         except ValueError:
             await update.message.reply_text(
-                "❌ Invalid date format. Please use YYYY-MM-DD format.",
+                "❌ Неверный формат даты. Используйте формат ГГГГ-ММ-ДД.",
                 parse_mode=ParseMode.HTML
             )
             return SELECT_END_DATE
-        
+
         await update.message.reply_text(
-            f"✅ End date: <code>{date_str}</code>\n\n"
-            f"How many posts to copy? (1-100)\n"
-            f"Default: <code>50</code>",
+            f"✅ Конечная дата: <code>{date_str}</code>\n\n"
+            f"Сколько постов скопировать? (1-100)\n"
+            f"По умолчанию: <code>50</code>",
             parse_mode=ParseMode.HTML
         )
         return SELECT_COUNT
-    
+
     async def count_selected(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Process post count and start copying."""
         try:
@@ -340,14 +340,14 @@ class VKTelegramBot:
                 raise ValueError()
         except ValueError:
             count = 50  # Default
-        
+
         context.user_data["count"] = count
-        
+
         # Start copying
         await self.process_copy(update, context)
-        
+
         return ConversationHandler.END
-    
+
     async def process_copy(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Process the actual copy operation."""
         group_id = context.user_data["group_id"]
@@ -355,18 +355,18 @@ class VKTelegramBot:
         start_date = context.user_data["start_date"]
         end_date = context.user_data["end_date"]
         count = context.user_data["count"]
-        
+
         # Use target chat ID from file/config or current chat
         chat_id = self._get_target_chat_id() or str(update.effective_chat.id)
 
         await update.message.reply_text(
-            f"🚀 <b>Starting copy process...</b>\n\n"
-            f"Group: <code>{group_name}</code>\n"
-            f"Period: <code>{start_date.strftime('%Y-%m-%d')}</code> - "
+            f"🚀 <b>Запуск процесса копирования...</b>\n\n"
+            f"Группа: <code>{group_name}</code>\n"
+            f"Период: <code>{start_date.strftime('%Y-%m-%d')}</code> - "
             f"<code>{end_date.strftime('%Y-%m-%d')}</code>\n"
-            f"Max posts: <code>{count}</code>\n"
-            f"Target chat: <code>{chat_id}</code>\n\n"
-            f"⏳ This may take a while...",
+            f"Постов: <code>{count}</code>\n"
+            f"Чат назначения: <code>{chat_id}</code>\n\n"
+            f"⏳ Это может занять некоторое время...",
             parse_mode=ParseMode.HTML
         )
 
@@ -377,38 +377,38 @@ class VKTelegramBot:
             end_date=end_date,
             count=count
         )
-        
+
         if not posts:
             await update.message.reply_text(
-                "⚠️ No posts found for the specified period.",
+                "⚠️ Посты не найдены за указанный период.",
                 parse_mode=ParseMode.HTML
             )
             return
-        
+
         # Reverse to post in chronological order
         posts.reverse()
-        
+
         await update.message.reply_text(
-            f"📊 Found <code>{len(posts)}</code> posts. Starting to copy...",
+            f"📊 Найдено <code>{len(posts)}</code> постов. Начинаю копирование...",
             parse_mode=ParseMode.HTML
         )
-        
+
         # Initialize media handler
         self.media_handler = MediaHandler(self.bot)
-        
+
         # Copy each post
         success_count = 0
         for i, post in enumerate(posts, 1):
             progress = f"({i}/{len(posts)})"
-            
+
             try:
                 media = self.vk_client.get_post_media(post)
-                
+
                 # Create caption
                 caption = None
                 if media["text"]:
                     caption = media["text"][:1000]  # Telegram caption limit
-                
+
                 # Send media
                 if await self.media_handler.send_message_with_media(
                     chat_id=chat_id,
@@ -416,38 +416,38 @@ class VKTelegramBot:
                     caption=caption
                 ):
                     success_count += 1
-                
+
                 # Progress update every 10 posts
                 if i % 10 == 0 or i == len(posts):
                     await update.message.reply_text(
-                        f"📈 Progress: {progress} - {success_count}/{i} posts copied"
+                        f"📈 Прогресс: {progress} - скопировано {success_count}/{i} постов"
                     )
-                
+
             except Exception as e:
                 logger.error(f"Error copying post {i}: {e}")
                 continue
-        
+
         await update.message.reply_text(
-            f"✅ <b>Copy completed!</b>\n\n"
-            f"Successfully copied: <code>{success_count}/{len(posts)}</code> posts",
+            f"✅ <b>Копирование завершено!</b>\n\n"
+            f"Успешно скопировано: <code>{success_count}/{len(posts)}</code> постов",
             parse_mode=ParseMode.HTML
         )
-    
+
     async def cancel(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Cancel the current operation."""
         await update.message.reply_text(
-            "❌ Operation cancelled.",
+            "❌ Операция отменена.",
             parse_mode=ParseMode.HTML
         )
         return ConversationHandler.END
-    
+
     async def error_handler(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle errors."""
         logger.error(f"Update {update} caused error: {context.error}")
-        
+
         if update and update.effective_message:
             await update.effective_message.reply_text(
-                f"❌ An error occurred: <code>{context.error}</code>",
+                f"❌ Произошла ошибка: <code>{context.error}</code>",
                 parse_mode=ParseMode.HTML
             )
     
