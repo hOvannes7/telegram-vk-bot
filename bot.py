@@ -84,14 +84,14 @@ class VKTelegramBot:
         except Exception as e:
             logger.error(f"Error clearing target chat ID: {e}")
 
-    async def set_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    async def set_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Handle /setchat command - start waiting for chat ID."""
         # Only allow in private chat
         if update.effective_chat.type != 'private':
             await update.message.reply_text(
                 "❌ Эта команда работает только в личном чате с ботом."
             )
-            return
+            return ConversationHandler.END
         
         # Set user as waiting for chat ID
         self.setchat_user = update.effective_user.id
@@ -113,6 +113,8 @@ class VKTelegramBot:
             f"/getchat - показать текущий чат",
             parse_mode=ParseMode.HTML
         )
+        
+        return SETCHAT_WAIT_ID
 
     async def receive_chat_id(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         """Receive chat ID from user."""
