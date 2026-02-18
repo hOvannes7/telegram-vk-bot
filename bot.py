@@ -4,10 +4,9 @@ Main bot implementation with command handlers.
 """
 
 import logging
-import json
 from datetime import datetime
 from typing import Optional
-from telegram import Update, Bot, WebAppInfo, KeyboardButton, ReplyKeyboardMarkup
+from telegram import Update, Bot
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -34,9 +33,6 @@ logger = logging.getLogger(__name__)
 # Conversation states
 SELECT_GROUP, SELECT_START_DATE, SELECT_END_DATE, SELECT_COUNT = range(4)
 
-# Mini App URL - URL вашего развёрнутого Mini App
-MINI_APP_URL = "https://hOvannes7.github.io/telegram-vk-bot/webapp/"
-
 
 class VKTelegramBot:
     """Main bot class."""
@@ -49,142 +45,15 @@ class VKTelegramBot:
     
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /start command."""
-        # Create keyboard with Mini App button
-        keyboard = [
-            [KeyboardButton("📋 Открыть панель управления", web_app=WebAppInfo(url=MINI_APP_URL))]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        
         await update.message.reply_text(
             "👋 <b>Добро пожаловать в VK to Telegram Bot!</b>\n\n"
             "Этот бот копирует посты из сообществ ВКонтакте в Telegram.\n\n"
             "<b>Команды:</b>\n"
             "/copy - Начать копирование постов\n"
-            "/webapp - Открыть панель управления\n"
             "/help - Показать справку\n"
-            "/status - Проверить статус бота\n\n"
-            "Нажмите кнопку ниже, чтобы открыть удобную панель управления! 🎉",
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
+            "/status - Проверить статус бота",
+            parse_mode=ParseMode.HTML
         )
-    
-    async def webapp_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /webapp command - open Mini App."""
-        keyboard = [
-            [KeyboardButton("📋 Открыть панель управления", web_app=WebAppInfo(url=MINI_APP_URL))]
-        ]
-        reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
-        
-        await update.message.reply_text(
-            "📱 <b>Панель управления</b>\n\n"
-            "Нажмите кнопку ниже, чтобы открыть веб-интерфейс для настройки копирования постов.",
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
-        )
-    
-    async def handle_webapp_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle data received from Mini App."""
-        # Check if this is a web app data message
-        if not update.message or not update.message.web_app_data:
-            return
-            
-        try:
-            data = json.loads(update.message.web_app_data.data)
-            logger.info(f"Received Mini App data: {data}")
-
-            if data.get('action') != 'copy_posts':
-                return
-
-            # Extract data
-            group_id = data.get('groupId')
-            start_date_str = data.get('startDate')
-            end_date_str = data.get('endDate')
-            count = data.get('count', 10)
-
-            if not all([group_id, start_date_str, end_date_str]):
-                await update.message.reply_text("❌ Неверные данные от Mini App")
-                return
-
-            # Parse dates
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
-            end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
-            end_date = end_date.replace(hour=23, minute=59, second=59)
-
-            chat_id = update.effective_chat.id
-
-            await update.message.reply_text(
-                f"🚀 <b>Запуск процесса копирования...</b>\n\n"
-                f"Группа: <code>{group_id}</code>\n"
-                f"Период: <code>{start_date_str}</code> - <code>{end_date_str}</code>\n"
-                f"Постов: <code>{count}</code>\n\n"
-                f"⏳ Пожалуйста, подождите...",
-                parse_mode=ParseMode.HTML
-            )
-
-            # Get posts from VK
-            posts = self.vk_client.get_posts(
-                group_id=group_id,
-                start_date=start_date,
-                end_date=end_date,
-                count=count
-            )
-
-            if not posts:
-                await update.message.reply_text(
-                    "⚠️ Посты не найдены за указанный период."
-                )
-                return
-
-            # Reverse for chronological order
-            posts.reverse()
-
-            await update.message.reply_text(
-                f"📊 Найдено <code>{len(posts)}</code> постов. Начинаю копирование..."
-            )
-
-            # Initialize media handler
-            self.media_handler = MediaHandler(self.bot)
-
-            # Copy each post
-            success_count = 0
-            for i, post in enumerate(posts, 1):
-                try:
-                    media = self.vk_client.get_post_media(post)
-
-                    # Create caption
-                    caption = None
-                    if media["text"]:
-                        caption = media["text"][:1000]
-
-                    # Send media
-                    if await self.media_handler.send_message_with_media(
-                        chat_id=chat_id,
-                        media=media,
-                        caption=caption
-                    ):
-                        success_count += 1
-
-                    # Progress update every 5 posts
-                    if i % 5 == 0 or i == len(posts):
-                        await update.message.reply_text(
-                            f"📈 Прогресс: {i}/{len(posts)} - скопировано {success_count} постов"
-                        )
-
-                except Exception as e:
-                    logger.error(f"Error copying post {i}: {e}")
-                    continue
-
-            await update.message.reply_text(
-                f"✅ <b>Копирование завершено!</b>\n\n"
-                f"Успешно скопировано: <code>{success_count}/{len(posts)}</code> постов",
-                parse_mode=ParseMode.HTML
-            )
-
-        except json.JSONDecodeError as e:
-            logger.error(f"Invalid JSON from Mini App: {e}")
-        except Exception as e:
-            logger.error(f"Error handling Mini App data: {e}")
-            await update.message.reply_text(f"❌ Ошибка: {e}")
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /help command."""
@@ -447,16 +316,9 @@ class VKTelegramBot:
         # Add handlers
         application.add_handler(conv_handler)
         application.add_handler(CommandHandler("start", self.start))
-        application.add_handler(CommandHandler("webapp", self.webapp_command))
         application.add_handler(CommandHandler("help", self.help_command))
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("cancel", self.cancel))
-
-        # Handler for Mini App data
-        application.add_handler(MessageHandler(
-            filters.ALL & ~filters.COMMAND,
-            self.handle_webapp_data
-        ))
 
         # Error handler
         application.add_error_handler(self.error_handler)
