@@ -8,7 +8,7 @@ import json
 from datetime import datetime
 from typing import Optional
 from pathlib import Path
-from telegram import Update, Bot, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, Bot
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -16,7 +16,6 @@ from telegram.ext import (
     MessageHandler,
     ContextTypes,
     filters,
-    CallbackQueryHandler,
 )
 from telegram.constants import ParseMode
 
@@ -84,94 +83,38 @@ class VKTelegramBot:
             logger.error(f"Error clearing target chat ID: {e}")
 
     async def set_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /setchat command - show list of chats to choose."""
-        # Get all chats where bot is admin
-        try:
-            # Get common chats with the user
-            chats = await context.bot.get_common_chats(update.effective_user.id)
-            
-            if not chats:
-                await update.message.reply_text(
-                    "❌ У меня нет общих чатов с вами.\n\n"
-                    f"Добавьте меня в канал/группу как администратора, затем используйте <code>/setchat</code> там.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-            
-            # Filter chats where bot can send messages
-            admin_chats = []
-            for chat in chats:
-                if chat.type in ['channel', 'supergroup']:
-                    try:
-                        member = await context.bot.get_chat_member(chat.id, context.bot.id)
-                        if member.status in ['administrator', 'creator']:
-                            admin_chats.append(chat)
-                    except:
-                        pass
-            
-            if not admin_chats:
-                await update.message.reply_text(
-                    "❌ У меня нет прав администратора ни в одном чате.\n\n"
-                    "Добавьте меня в канал/группу как администратора, затем отправьте /setchat там.",
-                    parse_mode=ParseMode.HTML
-                )
-                return
-            
-            # Create keyboard with chat list
-            keyboard = []
-            for chat in admin_chats:
-                chat_name = chat.title or chat.username or str(chat.id)
-                keyboard.append([InlineKeyboardButton(f"{chat_name} ({chat.id})", callback_data=f"setchat_{chat.id}")])
-            
-            keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data="setchat_cancel")])
-            reply_markup = InlineKeyboardMarkup(keyboard)
-            
-            await update.message.reply_text(
-                "📍 <b>Выберите чат для копирования постов:</b>\n\n"
-                f"Найдено чатов: {len(admin_chats)}\n"
-                "Нажмите на нужный чат ниже.",
-                parse_mode=ParseMode.HTML,
-                reply_markup=reply_markup
-            )
-            
-        except Exception as e:
-            logger.error(f"Error getting chats: {e}")
-            await update.message.reply_text(
-                f"❌ Ошибка получения списка чатов: {e}\n\n"
-                f"Используйте /setchat в том чате, куда хотите копировать посты."
-            )
-
-    async def set_chat_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle chat selection callback."""
-        query = update.callback_query
-        await query.answer()
-        
-        data = query.data
-        
-        if data == "setchat_cancel":
-            await query.edit_message_text("❌ Отменено.")
-            return
-        
-        if data.startswith("setchat_"):
-            chat_id = data.replace("setchat_", "")
+        """Handle /setchat command - set target chat for copying posts."""
+        # Check if command is from private chat
+        if update.effective_chat.type != 'private':
+            # If not private, save this chat
+            chat_id = str(update.effective_chat.id)
             self._save_target_chat_id(chat_id)
             
-            try:
-                chat = await context.bot.get_chat(chat_id)
-                chat_name = chat.title or chat.username or str(chat.id)
-                
-                await query.edit_message_text(
-                    f"✅ <b>Целевой чат установлен!</b>\n\n"
-                    f"Чат: <code>{chat_name}</code>\n"
-                    f"ID: <code>{chat_id}</code>\n\n"
-                    f"Теперь все посты будут копироваться в этот чат.\n\n"
-                    f"Команды:\n"
-                    f"/getchat - Показать текущий чат\n"
-                    f"/clearchat - Сбросить настройки",
-                    parse_mode=ParseMode.HTML
-                )
-            except Exception as e:
-                await query.edit_message_text(f"❌ Ошибка: {e}")
+            chat_name = update.effective_chat.title or update.effective_chat.username or str(chat.id)
+            
+            await update.message.reply_text(
+                f"✅ <b>Целевой чат установлен!</b>\n\n"
+                f"Чат: <code>{chat_name}</code>\n"
+                f"ID: <code>{chat_id}</code>\n\n"
+                f"Теперь все посты будут копироваться в этот чат.\n\n"
+                f"Команды:\n"
+                f"/getchat - Показать текущий чат\n"
+                f"/clearchat - Сбросить настройки",
+                parse_mode=ParseMode.HTML
+            )
+            return
+        
+        # If from private chat, show instructions
+        await update.message.reply_text(
+            "📍 <b>Настройка целевого чата</b>\n\n"
+            "Отправьте эту команду в тот чат (канал/группу), куда хотите копировать посты:\n\n"
+            f"<code>/setchat</code>\n\n"
+            "Или добавьте меня в чат как администратора и отправьте /setchat там.\n\n"
+            "Текущие настройки:\n"
+            f"<code>/getchat</code> - показать текущий чат\n"
+            f"<code>/clearchat</code> - сбросить настройки",
+            parse_mode=ParseMode.HTML
+        )
 
     async def get_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /getchat command - show current target chat."""
@@ -488,9 +431,6 @@ class VKTelegramBot:
         application.add_handler(CommandHandler("setchat", self.set_chat))
         application.add_handler(CommandHandler("getchat", self.get_chat))
         application.add_handler(CommandHandler("clearchat", self.clear_chat))
-        
-        # Handler for chat selection callbacks
-        application.add_handler(CallbackQueryHandler(self.set_chat_callback, pattern="^setchat_"))
 
         # Error handler
         application.add_error_handler(self.error_handler)
