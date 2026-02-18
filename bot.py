@@ -84,29 +84,34 @@ class VKTelegramBot:
     
     async def handle_webapp_data(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle data received from Mini App."""
+        # Check if this is a web app data message
+        if not update.message or not update.message.web_app_data:
+            return
+            
         try:
             data = json.loads(update.message.web_app_data.data)
-            
+            logger.info(f"Received Mini App data: {data}")
+
             if data.get('action') != 'copy_posts':
                 return
-            
+
             # Extract data
             group_id = data.get('groupId')
             start_date_str = data.get('startDate')
             end_date_str = data.get('endDate')
             count = data.get('count', 10)
-            
+
             if not all([group_id, start_date_str, end_date_str]):
                 await update.message.reply_text("❌ Неверные данные от Mini App")
                 return
-            
+
             # Parse dates
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d")
             end_date = datetime.strptime(end_date_str, "%Y-%m-%d")
             end_date = end_date.replace(hour=23, minute=59, second=59)
-            
+
             chat_id = update.effective_chat.id
-            
+
             await update.message.reply_text(
                 f"🚀 <b>Запуск процесса копирования...</b>\n\n"
                 f"Группа: <code>{group_id}</code>\n"
@@ -115,7 +120,7 @@ class VKTelegramBot:
                 f"⏳ Пожалуйста, подождите...",
                 parse_mode=ParseMode.HTML
             )
-            
+
             # Get posts from VK
             posts = self.vk_client.get_posts(
                 group_id=group_id,
@@ -123,34 +128,34 @@ class VKTelegramBot:
                 end_date=end_date,
                 count=count
             )
-            
+
             if not posts:
                 await update.message.reply_text(
                     "⚠️ Посты не найдены за указанный период."
                 )
                 return
-            
+
             # Reverse for chronological order
             posts.reverse()
-            
+
             await update.message.reply_text(
                 f"📊 Найдено <code>{len(posts)}</code> постов. Начинаю копирование..."
             )
-            
+
             # Initialize media handler
             self.media_handler = MediaHandler(self.bot)
-            
+
             # Copy each post
             success_count = 0
             for i, post in enumerate(posts, 1):
                 try:
                     media = self.vk_client.get_post_media(post)
-                    
+
                     # Create caption
                     caption = None
                     if media["text"]:
                         caption = media["text"][:1000]
-                    
+
                     # Send media
                     if await self.media_handler.send_message_with_media(
                         chat_id=chat_id,
@@ -158,25 +163,25 @@ class VKTelegramBot:
                         caption=caption
                     ):
                         success_count += 1
-                    
+
                     # Progress update every 5 posts
                     if i % 5 == 0 or i == len(posts):
                         await update.message.reply_text(
                             f"📈 Прогресс: {i}/{len(posts)} - скопировано {success_count} постов"
                         )
-                        
+
                 except Exception as e:
                     logger.error(f"Error copying post {i}: {e}")
                     continue
-            
+
             await update.message.reply_text(
                 f"✅ <b>Копирование завершено!</b>\n\n"
                 f"Успешно скопировано: <code>{success_count}/{len(posts)}</code> постов",
                 parse_mode=ParseMode.HTML
             )
-            
-        except json.JSONDecodeError:
-            logger.error("Invalid JSON from Mini App")
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON from Mini App: {e}")
         except Exception as e:
             logger.error(f"Error handling Mini App data: {e}")
             await update.message.reply_text(f"❌ Ошибка: {e}")
@@ -446,10 +451,10 @@ class VKTelegramBot:
         application.add_handler(CommandHandler("help", self.help_command))
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("cancel", self.cancel))
-        
+
         # Handler for Mini App data
         application.add_handler(MessageHandler(
-            filters.StatusUpdate.WEB_APP_DATA, 
+            filters.ALL & ~filters.COMMAND,
             self.handle_webapp_data
         ))
 
