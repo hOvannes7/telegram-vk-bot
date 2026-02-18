@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 # Conversation states
 SELECT_GROUP, SELECT_START_DATE, SELECT_END_DATE, SELECT_COUNT = range(4)
+SETCHAT_WAIT_ID = 100  # State for waiting chat ID
 
 # File to store target chat ID
 TARGET_CHAT_FILE = Path("target_chat.json")
@@ -47,6 +48,7 @@ class VKTelegramBot:
         self.bot: Optional[Bot] = None
         self.media_handler: Optional[MediaHandler] = None
         self.user_data = {}
+        self.setchat_user = None  # User ID waiting for chat ID input
 
     def _get_target_chat_id(self) -> Optional[str]:
         """Get target chat ID from file or config."""
@@ -83,38 +85,84 @@ class VKTelegramBot:
             logger.error(f"Error clearing target chat ID: {e}")
 
     async def set_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Handle /setchat command - set target chat for copying posts."""
-        # Check if command is from private chat
+        """Handle /setchat command - start waiting for chat ID."""
+        # Only allow in private chat
         if update.effective_chat.type != 'private':
-            # If not private, save this chat
-            chat_id = str(update.effective_chat.id)
-            self._save_target_chat_id(chat_id)
-            
-            chat_name = update.effective_chat.title or update.effective_chat.username or str(chat.id)
-            
             await update.message.reply_text(
-                f"✅ <b>Целевой чат установлен!</b>\n\n"
-                f"Чат: <code>{chat_name}</code>\n"
-                f"ID: <code>{chat_id}</code>\n\n"
-                f"Теперь все посты будут копироваться в этот чат.\n\n"
-                f"Команды:\n"
-                f"/getchat - Показать текущий чат\n"
-                f"/clearchat - Сбросить настройки",
-                parse_mode=ParseMode.HTML
+                "❌ Эта команда работает только в личном чате с ботом."
             )
             return
         
-        # If from private chat, show instructions
+        # Set user as waiting for chat ID
+        self.setchat_user = update.effective_user.id
+        
+        # Get current target chat info
+        current_chat_id = self._get_target_chat_id()
+        current_info = f"Текущий чат: <code>{current_chat_id}</code>\n\n" if current_chat_id else ""
+        
         await update.message.reply_text(
-            "📍 <b>Настройка целевого чата</b>\n\n"
-            "Отправьте эту команду в тот чат (канал/группу), куда хотите копировать посты:\n\n"
-            f"<code>/setchat</code>\n\n"
-            "Или добавьте меня в чат как администратора и отправьте /setchat там.\n\n"
-            "Текущие настройки:\n"
-            f"<code>/getchat</code> - показать текущий чат\n"
-            f"<code>/clearchat</code> - сбросить настройки",
+            f"📍 <b>Настройка целевого чата</b>\n\n"
+            f"{current_info}"
+            f"<b>Отправьте ID чата следующим сообщением.</b>\n\n"
+            f"Как узнать ID чата:\n"
+            f"1. Добавьте бота @userinfobot в ваш канал/группу\n"
+            f"2. Он покажет ID (например: -1001234567890)\n"
+            f"3. Скопируйте ID и отправьте мне\n\n"
+            f"Или используйте:\n"
+            f"/cancel - отменить\n"
+            f"/getchat - показать текущий чат",
             parse_mode=ParseMode.HTML
         )
+
+    async def receive_chat_id(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Receive chat ID from user."""
+        user_id = update.effective_user.id
+        
+        # Check if this user is waiting for chat ID
+        if user_id != self.setchat_user:
+            return ConversationHandler.END
+        
+        chat_id_text = update.message.text.strip()
+        
+        # Validate chat ID (should be like -1001234567890 or 123456789)
+        if not chat_id_text.lstrip('-').isdigit():
+            await update.message.reply_text(
+                "❌ Неверный формат ID.\n\n"
+                "ID должен быть числом, например: -1001234567890\n"
+                "Попробуйте ещё раз или /cancel для отмены."
+            )
+            return SETCHAT_WAIT_ID
+        
+        # Save chat ID
+        self._save_target_chat_id(chat_id_text)
+        self.setchat_user = None
+        
+        await update.message.reply_text(
+            f"✅ <b>Целевой чат установлен!</b>\n\n"
+            f"ID: <code>{chat_id_text}</code>\n\n"
+            f"Теперь все посты будут копироваться в этот чат.\n\n"
+            f"Команды:\n"
+            f"/getchat - Показать текущий чат\n"
+            f"/clearchat - Сбросить настройки\n"
+            f"/setchat - Изменить чат",
+            parse_mode=ParseMode.HTML
+        )
+        
+        return ConversationHandler.END
+
+    async def cancel_setchat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+        """Cancel setchat operation."""
+        user_id = update.effective_user.id
+        
+        if user_id == self.setchat_user:
+            self.setchat_user = None
+        
+        await update.message.reply_text(
+            "❌ Отменено.\n\n"
+            f"/setchat - начать настройку заново"
+        )
+        
+        return ConversationHandler.END
 
     async def get_chat(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /getchat command - show current target chat."""
@@ -410,7 +458,7 @@ class VKTelegramBot:
         application = Application.builder().token(Config.TELEGRAM_BOT_TOKEN).build()
         self.bot = application.bot
 
-        # Add conversation handler
+        # Add conversation handler for copy
         conv_handler = ConversationHandler(
             entry_points=[CommandHandler("copy", self.copy_start)],
             states={
@@ -421,14 +469,23 @@ class VKTelegramBot:
             },
             fallbacks=[CommandHandler("cancel", self.cancel)],
         )
+        
+        # Add conversation handler for setchat
+        setchat_handler = ConversationHandler(
+            entry_points=[CommandHandler("setchat", self.set_chat)],
+            states={
+                SETCHAT_WAIT_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.receive_chat_id)],
+            },
+            fallbacks=[CommandHandler("cancel", self.cancel_setchat)],
+        )
 
         # Add handlers
         application.add_handler(conv_handler)
+        application.add_handler(setchat_handler)
         application.add_handler(CommandHandler("start", self.start))
         application.add_handler(CommandHandler("help", self.help_command))
         application.add_handler(CommandHandler("status", self.status))
         application.add_handler(CommandHandler("cancel", self.cancel))
-        application.add_handler(CommandHandler("setchat", self.set_chat))
         application.add_handler(CommandHandler("getchat", self.get_chat))
         application.add_handler(CommandHandler("clearchat", self.clear_chat))
 
