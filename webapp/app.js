@@ -29,6 +29,7 @@ const targetChatSelect = document.getElementById('targetChat');
 const statusDiv = document.getElementById('status');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
+const submitBtn = document.getElementById('submitBtn');
 
 // Saved groups elements
 const savedGroupsSection = document.getElementById('savedGroupsSection');
@@ -222,6 +223,8 @@ function showProcessing() {
     progressFill.style.width = '0%';
     progressText.textContent = '0/0';
     
+    // Hide submit button
+    submitBtn.classList.add('hidden');
     mainButton.hide();
     
     // Scroll to status
@@ -243,12 +246,12 @@ function showSuccess(count) {
     document.querySelector('.status-icon').textContent = '✅';
     document.querySelector('.status-text').textContent = `Скопировано ${count} постов!`;
     
+    // Show submit button for new copy
+    submitBtn.classList.remove('hidden');
+    submitBtn.textContent = '🚀 Копировать ещё';
+    
     mainButton.setText('🚀 Копировать ещё');
     mainButton.show();
-    mainButton.onClick(() => {
-        statusDiv.classList.add('hidden');
-        mainButton.setText('🚀 Начать копирование');
-    });
 }
 
 // Show error
