@@ -6,6 +6,8 @@
     --tg-theme-button-color: #2481cc;
     --tg-theme-button-text-color: #ffffff;
     --tg-theme-secondary-bg-color: #f4f4f5;
+    --tg-theme-danger-color: #ff3b30;
+    --tg-theme-success-color: #34c759;
 }
 
 * {
@@ -25,11 +27,12 @@ body {
 .container {
     max-width: 500px;
     margin: 0 auto;
+    padding-bottom: 80px;
 }
 
 header {
     text-align: center;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     padding: 16px 0;
 }
 
@@ -44,8 +47,182 @@ header h1 {
     font-size: 14px;
 }
 
+/* Saved Groups Section */
+.saved-groups-section {
+    background-color: var(--tg-theme-secondary-bg-color);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 20px;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.section-header h2 {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.btn-add {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s;
+}
+
+.btn-add:hover {
+    opacity: 0.9;
+}
+
+.add-group-form {
+    background-color: var(--tg-theme-bg-color);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 12px;
+}
+
+.add-group-form.hidden,
+.groups-list.hidden,
+#noGroupsHint.hidden {
+    display: none;
+}
+
+.input-small {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--tg-theme-secondary-bg-color);
+    border-radius: 8px;
+    font-size: 14px;
+    background-color: var(--tg-theme-secondary-bg-color);
+    color: var(--tg-theme-text-color);
+    margin-bottom: 8px;
+}
+
+.input-small:focus {
+    outline: none;
+    border-color: var(--tg-theme-button-color);
+}
+
+.form-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-save,
+.btn-cancel {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.btn-save {
+    background-color: var(--tg-theme-button-color);
+    color: var(--tg-theme-button-text-color);
+}
+
+.btn-cancel {
+    background-color: var(--tg-theme-secondary-bg-color);
+    color: var(--tg-theme-text-color);
+}
+
+.groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.group-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--tg-theme-bg-color);
+    border-radius: 10px;
+    padding: 12px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+.group-item:active {
+    transform: scale(0.98);
+}
+
+.group-info {
+    flex: 1;
+}
+
+.group-name {
+    font-weight: 500;
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.group-id {
+    font-size: 12px;
+    color: var(--tg-theme-hint-color);
+}
+
+.group-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.btn-delete {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: none;
+    background-color: transparent;
+    color: var(--tg-theme-danger-color);
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.btn-delete:hover {
+    background-color: rgba(255, 59, 48, 0.1);
+}
+
+#noGroupsHint {
+    text-align: center;
+    color: var(--tg-theme-hint-color);
+    font-size: 13px;
+    padding: 20px 0;
+}
+
+/* Main Form */
+.main-form {
+    background-color: var(--tg-theme-secondary-bg-color);
+    border-radius: 16px;
+    padding: 16px;
+}
+
 .form-group {
     margin-bottom: 20px;
+}
+
+.form-group:last-child {
+    margin-bottom: 0;
 }
 
 .form-row {
@@ -55,6 +232,7 @@ header h1 {
 
 .form-row .form-group {
     flex: 1;
+    margin-bottom: 0;
 }
 
 label {
@@ -79,7 +257,7 @@ select {
     border: 1px solid var(--tg-theme-secondary-bg-color);
     border-radius: 12px;
     font-size: 15px;
-    background-color: var(--tg-theme-secondary-bg-color);
+    background-color: var(--tg-theme-bg-color);
     color: var(--tg-theme-text-color);
     transition: border-color 0.2s, box-shadow 0.2s;
     -webkit-appearance: none;
@@ -156,8 +334,9 @@ input[type="number"] {
     text-align: center;
 }
 
+/* Status */
 .status {
-    margin-top: 24px;
+    margin-top: 20px;
     padding: 20px;
     background-color: var(--tg-theme-secondary-bg-color);
     border-radius: 16px;
@@ -224,13 +403,12 @@ input[type="number"] {
     animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* Success/Error states */
 .status.success .status-icon {
-    color: #34c759;
+    color: var(--tg-theme-success-color);
 }
 
 .status.error .status-icon {
-    color: #ff3b30;
+    color: var(--tg-theme-danger-color);
 }
 
 /* Responsive */

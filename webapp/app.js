@@ -30,6 +30,20 @@ const statusDiv = document.getElementById('status');
 const progressFill = document.getElementById('progressFill');
 const progressText = document.getElementById('progressText');
 
+// Saved groups elements
+const savedGroupsSection = document.getElementById('savedGroupsSection');
+const addGroupForm = document.getElementById('addGroupForm');
+const groupsList = document.getElementById('groupsList');
+const noGroupsHint = document.getElementById('noGroupsHint');
+const newGroupNameInput = document.getElementById('newGroupName');
+const newGroupIdInput = document.getElementById('newGroupId');
+
+// Storage key for saved groups
+const SAVED_GROUPS_KEY = 'vk_saved_groups';
+
+// Load saved groups
+let savedGroups = JSON.parse(localStorage.getItem(SAVED_GROUPS_KEY) || '[]');
+
 // Set default dates
 const today = new Date();
 const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -37,17 +51,117 @@ const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 endDateInput.value = today.toISOString().split('T')[0];
 startDateInput.value = lastWeek.toISOString().split('T')[0];
 
-// Range slider sync
-countRange.addEventListener('input', (e) => {
-    countInput.value = e.target.value;
-});
+// Initialize
+renderSavedGroups();
+setupEventListeners();
 
-countInput.addEventListener('input', (e) => {
-    let value = parseInt(e.target.value) || 1;
-    value = Math.max(1, Math.min(100, value));
-    countRange.value = value;
-    countInput.value = value;
-});
+// Setup event listeners
+function setupEventListeners() {
+    // Range slider sync
+    countRange.addEventListener('input', (e) => {
+        countInput.value = e.target.value;
+    });
+
+    countInput.addEventListener('input', (e) => {
+        let value = parseInt(e.target.value) || 1;
+        value = Math.max(1, Math.min(100, value));
+        countRange.value = value;
+        countInput.value = value;
+    });
+
+    // Haptic feedback
+    document.querySelectorAll('input, select, button').forEach(el => {
+        el.addEventListener('click', () => {
+            tg.HapticFeedback.impactOccurred('light');
+        });
+    });
+}
+
+// Render saved groups
+function renderSavedGroups() {
+    if (savedGroups.length === 0) {
+        groupsList.classList.add('hidden');
+        noGroupsHint.classList.remove('hidden');
+        return;
+    }
+    
+    groupsList.classList.remove('hidden');
+    noGroupsHint.classList.add('hidden');
+    
+    groupsList.innerHTML = savedGroups.map((group, index) => `
+        <div class="group-item" onclick="selectGroup(${index})">
+            <div class="group-info">
+                <div class="group-name">${escapeHtml(group.name)}</div>
+                <div class="group-id">${escapeHtml(group.id)}</div>
+            </div>
+            <div class="group-actions">
+                <button class="btn-delete" onclick="event.stopPropagation(); deleteGroup(${index})">🗑</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Escape HTML to prevent XSS
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Show add group form
+function showAddGroupForm() {
+    addGroupForm.classList.remove('hidden');
+    newGroupNameInput.focus();
+}
+
+// Hide add group form
+function hideAddGroupForm() {
+    addGroupForm.classList.add('hidden');
+    newGroupNameInput.value = '';
+    newGroupIdInput.value = '';
+}
+
+// Save group
+function saveGroup() {
+    const name = newGroupNameInput.value.trim();
+    const id = newGroupIdInput.value.trim();
+    
+    if (!name || !id) {
+        tg.showAlert('Введите название и ID группы');
+        return;
+    }
+    
+    savedGroups.push({ name, id });
+    localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(savedGroups));
+    
+    renderSavedGroups();
+    hideAddGroupForm();
+    
+    tg.HapticFeedback.notificationOccurred('success');
+}
+
+// Select group
+function selectGroup(index) {
+    const group = savedGroups[index];
+    groupIdInput.value = group.id;
+    
+    tg.HapticFeedback.selectionChanged();
+    
+    // Scroll to form
+    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// Delete group
+function deleteGroup(index) {
+    tg.showConfirm('Удалить это сообщество?', (confirmed) => {
+        if (confirmed) {
+            savedGroups.splice(index, 1);
+            localStorage.setItem(SAVED_GROUPS_KEY, JSON.stringify(savedGroups));
+            renderSavedGroups();
+            tg.HapticFeedback.notificationOccurred('warning');
+        }
+    });
+}
 
 // Form validation
 function validateForm() {
@@ -109,6 +223,9 @@ function showProcessing() {
     progressText.textContent = '0/0';
     
     mainButton.hide();
+    
+    // Scroll to status
+    statusDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // Update progress
@@ -125,6 +242,13 @@ function showSuccess(count) {
     
     document.querySelector('.status-icon').textContent = '✅';
     document.querySelector('.status-text').textContent = `Скопировано ${count} постов!`;
+    
+    mainButton.setText('🚀 Копировать ещё');
+    mainButton.show();
+    mainButton.onClick(() => {
+        statusDiv.classList.add('hidden');
+        mainButton.setText('🚀 Начать копирование');
+    });
 }
 
 // Show error
@@ -135,7 +259,7 @@ function showError(message) {
     document.querySelector('.status-icon').textContent = '❌';
     document.querySelector('.status-text').textContent = message || 'Ошибка копирования';
     
-    mainButton.setText('🚀 Начать заново');
+    mainButton.setText('🚀 Попробовать снова');
     mainButton.show();
 }
 
@@ -160,15 +284,5 @@ window.addEventListener('message', (event) => {
     }
 });
 
-// Haptic feedback on interactions
-document.querySelectorAll('input, select').forEach(el => {
-    el.addEventListener('focus', () => {
-        tg.HapticFeedback.impactOccurred('light');
-    });
-});
-
-mainButton.onClicked(() => {
-    tg.HapticFeedback.notificationOccurred('success');
-});
-
 console.log('Mini App initialized');
+console.log('Saved groups:', savedGroups);
