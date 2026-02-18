@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini App Test</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* Mock Telegram theme for browser testing */
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-hint-color: #999999;
+            --tg-theme-button-color: #2481cc;
+            --tg-theme-button-text-color: #ffffff;
+            --tg-theme-secondary-bg-color: #f4f4f5;
+        }
+        
+        body {
+            max-width: 500px;
+            margin: 0 auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        
+        .mock-main-button {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 500px;
+            background: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
+            border: none;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-align: center;
+        }
+        
+        .mock-main-button:hover {
+            opacity: 0.9;
+        }
+        
+        .output {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📋 VK → Telegram</h1>
+            <p class="subtitle">Тестовая версия (браузер)</p>
+        </header>
+
+        <form id="copyForm">
+            <div class="form-group">
+                <label for="groupId">
+                    <span class="icon">👥</span>
+                    Сообщество VK
+                </label>
+                <input 
+                    type="text" 
+                    id="groupId" 
+                    name="groupId" 
+                    placeholder="Например: durov или 71295447"
+                    required
+                >
+                <small class="hint">Название или ID группы (например: pavlovsk_market)</small>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="startDate">
+                        <span class="icon">📅</span>
+                        С даты
+                    </label>
+                    <input 
+                        type="date" 
+                        id="startDate" 
+                        name="startDate"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="endDate">
+                        <span class="icon">📅</span>
+                        По дату
+                    </label>
+                    <input 
+                        type="date" 
+                        id="endDate" 
+                        name="endDate"
+                        required
+                    >
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="count">
+                    <span class="icon">📊</span>
+                    Количество постов
+                </label>
+                <div class="range-container">
+                    <input 
+                        type="range" 
+                        id="countRange" 
+                        min="1" 
+                        max="100" 
+                        value="10"
+                    >
+                    <input 
+                        type="number" 
+                        id="count" 
+                        name="count" 
+                        min="1" 
+                        max="100" 
+                        value="10"
+                        required
+                    >
+                </div>
+                <small class="hint">Максимум 100 постов за раз</small>
+            </div>
+
+            <div class="form-group">
+                <label for="targetChat">
+                    <span class="icon">📤</span>
+                    Куда отправлять
+                </label>
+                <select id="targetChat" name="targetChat">
+                    <option value="current">В этот чат</option>
+                    <option value="config">В канал из настроек</option>
+                </select>
+                <small class="hint">Выберите куда копировать посты</small>
+            </div>
+        </form>
+
+        <div class="output">
+            <strong>Данные для отправки:</strong>
+            <pre id="outputData">Заполните форму...</pre>
+        </div>
+    </div>
+
+    <button class="mock-main-button" onclick="handleSubmit()">🚀 Начать копирование</button>
+
+    <script>
+        // Set default dates
+        const today = new Date();
+        const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        document.getElementById('startDate').value = lastWeek.toISOString().split('T')[0];
+
+        // Range slider sync
+        document.getElementById('countRange').addEventListener('input', (e) => {
+            document.getElementById('count').value = e.target.value;
+            updateOutput();
+        });
+
+        document.getElementById('count').addEventListener('input', (e) => {
+            let value = parseInt(e.target.value) || 1;
+            value = Math.max(1, Math.min(100, value));
+            document.getElementById('countRange').value = value;
+            document.getElementById('count').value = value;
+            updateOutput();
+        });
+
+        // Update output on any change
+        document.querySelectorAll('input, select').forEach(el => {
+            el.addEventListener('input', updateOutput);
+            el.addEventListener('change', updateOutput);
+        });
+
+        function updateOutput() {
+            const data = {
+                action: 'copy_posts',
+                groupId: document.getElementById('groupId').value.trim(),
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                count: parseInt(document.getElementById('count').value),
+                targetChat: document.getElementById('targetChat').value,
+                userId: 123456789 // Mock user ID
+            };
+            
+            document.getElementById('outputData').textContent = JSON.stringify(data, null, 2);
+        }
+
+        function handleSubmit() {
+            const data = {
+                action: 'copy_posts',
+                groupId: document.getElementById('groupId').value.trim(),
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                count: parseInt(document.getElementById('count').value),
+                targetChat: document.getElementById('targetChat').value,
+                userId: 123456789
+            };
+            
+            if (!data.groupId) {
+                alert('Введите название или ID группы VK');
+                return;
+            }
+            
+            alert('Данные готовы к отправке!\n\nСм. вывод ниже формы.\n\nВ Telegram эти данные будут отправлены боту через tg.sendData().');
+            console.log('Mini App Data:', data);
+        }
+
+        // Initialize output
+        updateOutput();
+    </script>
+</body>
+</html>
